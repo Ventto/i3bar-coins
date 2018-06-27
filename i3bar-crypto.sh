@@ -1,5 +1,45 @@
 #!/bin/sh
 
+coinbase_get_currency_price() {
+    currency_code="$1"
+
+    curr_date="$(date +'%Y-%m-%d')"
+
+    req=$(curl -s -H "CB-VERSION: ${curr_date}" \
+               "https://api.coinbase.com/v2/prices/${currency_code}-USD/spot")
+
+    # shellcheck disable=SC2181
+    if [ "$?" -ne 0 ]; then
+        echo "curl-error"
+        return 1
+    fi
+
+    error="$(echo "$req" | \
+             sed -n 's|.*errors":\[{"id":"\(.*\)","message".*|\1|p')"
+
+    if [ -n "$error" ]; then
+        echo "coinbase:$error"
+        return 1
+    fi
+
+    price="$(echo "$req" | sed -n 's|.*amount":"\([0-9]\+\.[0-9]\+\)".*|\1|p')"
+
+    if [ -n "$price" ]; then
+        echo "$price"
+        return 0
+    fi
+
+    echo "unknown-error"
+    return 1
+}
+
+is_valid_platform() {
+    case $1 in
+        coinbase) return 0;;
+        *) return 1;;
+    esac
+}
+
 request_money_exchange()
 {
     [ "$#" -ne 1 ] && return 2
@@ -62,6 +102,21 @@ moneycode2symbol() {
     echo "$symbol" | awk '{print $2}'
 }
 
+change_period_to_api() {
+    case $1 in
+        hour) echo "1h";;
+        day) echo "24h";;
+        week) echo "7d";;
+        *) echo "24h";;
+    esac
+}
+
+print_err() {
+    msg="$1"
+
+    printf '{ "full_text": " - [%s]", "color": "#FF0000" },' "$msg"
+}
+
 print_crypto_change()
 {
     change="$1"
@@ -79,32 +134,18 @@ print_crypto_change()
            "${change_out} ${change}%" "$color"
 }
 
-change_period_to_api() {
-    case $1 in
-        hour) echo "1h";;
-        day) echo "24h";;
-        week) echo "7d";;
-        *) echo "24h";;
-    esac
-}
-
-err() {
-    msg="$1"
-
-    printf '{ "full_text": " - [%s]", "color": "#FF0000" },' "$msg"
-}
-
-i3bar_crypto()
+print_crypto_data()
 {
     crypto_name="$1"
     money_code="$2"
     change_period="$3"
     printSymbol="$4"
+    platform="$5"
 
     idlist_file="/usr/share/i3bar-crypto/data/api_crypto_ids"
 
     if [ ! -r "$idlist_file" ]; then
-        err 'error'
+        print_err 'error'
         return 1
     fi
 
@@ -114,46 +155,50 @@ i3bar_crypto()
 
     # shellcheck disable=SC2181
     if [ "$?" -ne 0 ]; then
-        err 'bad-request'
+        print_err 'curl-error'
         return 2
     fi
 
-    if [ "$money_code" = "USD" ]; then
-        exchange=1
-    else
+    change=$(echo "$req" | \
+             sed -n "s%.*change_${change_period}\": \\(-\\?[0-9]\\+\\.[0-9]\\+\\).*%\\1%p")
+
+    exchange=1
+    if [ "$money_code" != "USD" ]; then
         exchange=$(get_money_exchange "$money_code")
-    fi
-
-    if [ "$exchange" = "undefine" ]; then
-        printf '%s ? ' "$crypto_name"
-    else
-        price=$(echo "$req" | sed -n 's%.*price": \(-\?[0-9]\+\.[0-9]\+\),.*%\1%p')
-        price=$(echo "${price}*${exchange}" | bc -l)
-
-        money_symbol=''
-        if $printSymbol; then
-            money_symbol=$(moneycode2symbol "$money_code")
-
-            if [ -z "$money_symbol" ]; then
-                money_symbol="$money_code"
-            fi
-        fi
-
-        # shellcheck disable=SC2181
-        if [ "$?" -ne 0 ]; then
-            err 'money-symbol-error'
+        if [ "$exchange" = "undefine" ]; then
+            print_err 'undefined-exchange'
             return 1
         fi
-
-        printf '\t{ "full_text": "%s %.2f%s",' "$crypto_name" "$price" \
-               "$money_symbol"
-        echo '"separator_block_width": 14 },'
-
-        change=$(echo "$req" | \
-                 sed -n "s%.*change_${change_period}\": \\(-\\?[0-9]\\+\\.[0-9]\\+\\).*%\\1%p")
-
-        print_crypto_change "$change"
     fi
+
+    if [ "$platform" = "none" ]; then
+        price=$(echo "$req" | sed -n 's%.*price": \(-\?[0-9]\+\.[0-9]\+\),.*%\1%p')
+    else
+        out="$(eval "${platform}_get_currency_price '${crypto_name}'")"
+
+        if [ "$?" -ne 0 ]; then
+            print_err "$out"
+            return 1
+        fi
+        price="$out"
+    fi
+    price=$(echo "${price}*${exchange}" | bc -l)
+
+    money_symbol=''
+    if $printSymbol; then
+        money_symbol=$(moneycode2symbol "$money_code")
+        # shellcheck disable=SC2181
+        if [ "$?" -ne 0 ]; then
+            print_err 'money-symbol-error'
+            return 1
+        fi
+    fi
+
+    printf '\t{ "full_text": "%s %.2f%s",' "$crypto_name" "$price" \
+           "$money_symbol"
+    echo '"separator_block_width": 14 },'
+
+    print_crypto_change "$change"
 }
 
 usage() {
@@ -167,12 +212,14 @@ Argument:
 
 Options:
   -c, --change PERIOD
-        set the change on a PERIOD hour, day or week (default: day)
-  -p, --price MONEY_CODE
-        print the price of the crypto-currencies in official
-        money by giving its code (default: USD)
+        set the change on a PERIOD hour, day or week (default: day).
+  -m, --money CODE
+        print the price of a given crypto-currency in official
+        money by giving its CODE (default: USD).
   -s, --symbol
         print the money symbol. It may not work with some moneys.
+  -p, --platform NAME
+        name of the digital currency platform (ex: coinbase).
 
 Example:
   $ i3bar-crypto --price EUR --change day BTC,ETH
@@ -188,30 +235,42 @@ version() {
 
 main()
 {
-    # getopts does not support long options. We convert them to short one.
+    # getopts does not support long options, so we convert them to short one.
     for arg in "$@"; do
         shift
         case "$arg" in
             --change) set -- "$@" '-c' ;;
-            --price) set -- "$@" '-p' ;;
-            *)       set -- "$@" "$arg"
+            --money) set -- "$@" '-m' ;;
+            --platform) set -- "$@" '-p' ;;
+            *) set -- "$@" "$arg"
         esac
     done
 
     change_period='day'
-    money='USD'
+    money_code='USD'
+    platform='none'
     sFlag=false
 
     OPTIND=1
-    while getopts 'hvsc:p:' opt; do
+    while getopts 'hvsc:m:p:' opt; do
         case $opt in
             c)
                 [ -z "$OPTARG" ] && { usage; exit 2; }
                 change_period="$OPTARG"
                 ;;
+            m)
+                [ -z "$OPTARG" ] && { usage; exit 2; }
+                money_code="$OPTARG"
+                ;;
             p)
                 [ -z "$OPTARG" ] && { usage; exit 2; }
-                money="$OPTARG"
+
+                platform="$OPTARG"
+
+                if ! is_valid_platform "$platform"; then
+                    print_err 'unknown-platform'
+                    exit 2
+                fi
                 ;;
             s) sFlag=true;;
             h)  usage   ; exit;;
@@ -232,7 +291,8 @@ main()
 
     IFS=","
     for currency in $currencies; do
-        i3bar_crypto "$currency" "$money" "$change_period" "$sFlag"
+        print_crypto_data "$currency" "$money_code" "$change_period" "$sFlag" \
+                          "$platform"
     done
 }
 
