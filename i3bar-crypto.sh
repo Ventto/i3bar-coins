@@ -42,11 +42,24 @@ get_money_exchange()
     fi
 }
 
-print_money_symbol() {
-    case $1 in
-        EUR) echo €;;
-        USD) echo $;;
-    esac
+moneycode2symbol() {
+    money_code="$1"
+
+    symbols_file="./money_symbols"
+
+    if [ ! -r "$symbols_file" ]; then
+        echo '?'
+        return
+    fi
+
+    symbol=$(grep -E "^${money_code}" "$symbols_file")
+
+    if [ -z "$symbol" ]; then
+        echo '?'
+        return
+    fi
+
+    echo "$symbol" | awk '{print $2}'
 }
 
 print_crypto_change()
@@ -75,50 +88,67 @@ change_period_to_api() {
     esac
 }
 
+err() {
+    msg="$1"
+
+    printf '{ "full_text": " - [%s]", "color": "#FF0000" },' "$msg"
+}
+
 i3bar_crypto()
 {
     crypto_name="$1"
-    money_name="$2"
+    money_code="$2"
     change_period="$3"
 
-    data=$(curl -s "https://api.coinmarketcap.com/v1/ticker/${crypto_name}/")
+    idlist_file="./api_crypto_ids"
+
+    if [ ! -r "$idlist_file" ]; then
+        err 'error'
+        return 1
+    fi
+
+    id=$(grep -E "^${crypto_name} " "$idlist_file" | awk '{print $2}')
+
+    req=$(curl -s "https://api.coinmarketcap.com/v2/ticker/${id}/")
 
     # shellcheck disable=SC2181
     if [ "$?" -ne 0 ]; then
-        printf '{ "full_text": " - [error]", "color": "#FF0000" },'
+        err 'bad-request'
         return 2
     fi
 
-    if echo "$data" | grep 'id not found' >/dev/null 2>&1; then
-        printf '{ "full_text": " - [unknown]", "color": "#FF0000" },'
-        return 3
-    fi
-
-    symbol=$(echo "$data" | sed -n 's%.*symbol": "\(.*\)".*%\1%p')
-
-    if ! echo "$symbol" | grep -E '[A-Z]{3}' >/dev/null 2>&1; then
-        printf '{ "full_text": " - [error]", "color": "#FF0000" },'
-        return 4
-    fi
-
-    if [ "$money_name" = "USD" ]; then
+    if [ "$money_code" = "USD" ]; then
         exchange=1
     else
-        exchange=$(get_money_exchange "$money_name")
+        exchange=$(get_money_exchange "$money_code")
     fi
 
     if [ "$exchange" = "undefine" ]; then
-        printf '%s ? ' "$symbol"
+        printf '%s ? ' "$crypto_name"
     else
-        price=$(echo "$data" | sed -n 's%.*price_usd": "\(.*\)".*%\1%p')
+        price=$(echo "$req" | sed -n 's%.*price": \(-\?[0-9]\+\.[0-9]\+\),.*%\1%p')
         price=$(echo "${price}*${exchange}" | bc -l)
 
-        printf '\t{ "full_text": "%s %.2f%s",' "$symbol" "$price" \
-               "$(print_money_symbol "$money_name")"
+        money_symbol=$(moneycode2symbol "$money_code")
+        set +x
+
+        if [ -z "$money_symbol" ]; then
+            money_symbol="$money_code"
+        fi
+
+        # shellcheck disable=SC2181
+        if [ "$?" -ne 0 ]; then
+            err 'money-symbol-error'
+            return 1
+        fi
+
+        printf '\t{ "full_text": "%s %.2f%s",' "$crypto_name" "$price" \
+               "$money_symbol"
         echo '"separator_block_width": 14 },'
 
-        change=$(echo "$data" | \
-            sed -n "s%.*change_${change_period}\": \"\\(.*\\)\".*%\\1%p")
+        change=$(echo "$req" | \
+                 sed -n "s%.*change_${change_period}\": \\(-\\?[0-9]\\+\\.[0-9]\\+\\).*%\\1%p")
+
         print_crypto_change "$change"
     fi
 }
