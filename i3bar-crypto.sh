@@ -1,6 +1,6 @@
 #!/bin/sh
 
-req_money_exchange()
+request_money_exchange()
 {
     [ "$#" -ne 1 ] && return 2
 
@@ -29,7 +29,7 @@ get_money_exchange()
     if [ -r "/tmp/USD_${money}" ]; then
         cat "/tmp/USD_${money}"
     else
-        exchange=$(req_money_exchange "$money")
+        exchange=$(request_money_exchange "$money")
 
         # shellcheck disable=SC2181
         if [ "$?" -eq 0 ]; then
@@ -45,7 +45,7 @@ get_money_exchange()
 moneycode2symbol() {
     money_code="$1"
 
-    symbols_file="./data/money_symbols"
+    symbols_file="/usr/share/i3bar-crypto/data/money_symbols"
 
     if [ ! -r "$symbols_file" ]; then
         echo '?'
@@ -101,7 +101,7 @@ i3bar_crypto()
     change_period="$3"
     printSymbol="$4"
 
-    idlist_file="./data/api_crypto_ids"
+    idlist_file="/usr/share/i3bar-crypto/data/api_crypto_ids"
 
     if [ ! -r "$idlist_file" ]; then
         err 'error'
