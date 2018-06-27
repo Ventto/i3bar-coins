@@ -45,7 +45,7 @@ get_money_exchange()
 moneycode2symbol() {
     money_code="$1"
 
-    symbols_file="./money_symbols"
+    symbols_file="./data/money_symbols"
 
     if [ ! -r "$symbols_file" ]; then
         echo '?'
@@ -99,8 +99,9 @@ i3bar_crypto()
     crypto_name="$1"
     money_code="$2"
     change_period="$3"
+    printSymbol="$4"
 
-    idlist_file="./api_crypto_ids"
+    idlist_file="./data/api_crypto_ids"
 
     if [ ! -r "$idlist_file" ]; then
         err 'error'
@@ -129,11 +130,13 @@ i3bar_crypto()
         price=$(echo "$req" | sed -n 's%.*price": \(-\?[0-9]\+\.[0-9]\+\),.*%\1%p')
         price=$(echo "${price}*${exchange}" | bc -l)
 
-        money_symbol=$(moneycode2symbol "$money_code")
-        set +x
+        money_symbol=''
+        if $printSymbol; then
+            money_symbol=$(moneycode2symbol "$money_code")
 
-        if [ -z "$money_symbol" ]; then
-            money_symbol="$money_code"
+            if [ -z "$money_symbol" ]; then
+                money_symbol="$money_code"
+            fi
         fi
 
         # shellcheck disable=SC2181
@@ -168,6 +171,8 @@ Options:
   -p, --price MONEY_CODE
         print the price of the crypto-currencies in official
         money by giving its code (default: USD)
+  -s, --symbol
+        print the money symbol. It may not work with some moneys.
 
 Example:
   $ i3bar-crypto --price EUR --change day BTC,ETH
@@ -195,9 +200,10 @@ main()
 
     change_period='day'
     money='USD'
+    sFlag=false
 
     OPTIND=1
-    while getopts 'hvc:p:' opt; do
+    while getopts 'hvsc:p:' opt; do
         case $opt in
             c)
                 [ -z "$OPTARG" ] && { usage; exit 2; }
@@ -207,6 +213,7 @@ main()
                 [ -z "$OPTARG" ] && { usage; exit 2; }
                 money="$OPTARG"
                 ;;
+            s) sFlag=true;;
             h)  usage   ; exit;;
             v)  version ; exit;;
             \?) usage; exit 2;;
@@ -225,7 +232,7 @@ main()
 
     IFS=","
     for currency in $currencies; do
-        i3bar_crypto "$currency" "$money" "$change_period"
+        i3bar_crypto "$currency" "$money" "$change_period" "$sFlag"
     done
 }
 
