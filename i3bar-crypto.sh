@@ -221,7 +221,7 @@ print_crypto_change()
         color='#00FF00'
     fi
 
-    printf '\t{ "full_text": "%s", "color": "%s" },\n' \
+    printf '{ "full_text": "%s", "color": "%s" },\n' \
            "${change_out} ${change}%" "$color"
 }
 
@@ -277,9 +277,8 @@ print_crypto_data()
         fi
     fi
 
-    printf '\t{ "full_text": "%s %.2f%s",' "$crypto_name" "$price" \
-           "$money_symbol"
-    echo '"separator_block_width": 14 },'
+    printf '{ "full_text": "%s %.2f%s", "separator_block_width": 14 },' \
+           "$crypto_name" "$price" "$money_symbol"
 
     print_crypto_change "$change"
 }
