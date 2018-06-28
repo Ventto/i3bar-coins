@@ -191,10 +191,7 @@ coincode_to_id() {
 }
 
 is_connected() {
-    if ! ping -c 2 free.currencyconverterapi.com >/dev/null 2>&1; then
-        return 1
-    fi
-    if ! ping -c 2 api.coinmarketcap.com >/dev/null 2>&1; then
+    if ! ping -c 1 google.com >/dev/null 2>&1; then
         return 1
     fi
     return 0
