@@ -1,6 +1,6 @@
 #!/bin/sh
 
-coinbase_get_currency_price() {
+coinbase_get_coin_price() {
     currency_code="$1"
 
     curr_date="$(date +'%Y-%m-%d')"
@@ -31,13 +31,6 @@ coinbase_get_currency_price() {
 
     echo "unknown-error"
     return 1
-}
-
-is_valid_platform() {
-    case $1 in
-        coinbase) return 0;;
-        *) return 1;;
-    esac
 }
 
 request_money_exchange()
@@ -82,7 +75,7 @@ get_money_exchange()
     fi
 }
 
-moneycode2symbol() {
+moneycode_to_symbol() {
     money_code="$1"
 
     symbols_file="/usr/share/i3bar-crypto/data/money_symbols"
@@ -111,10 +104,46 @@ change_period_to_api() {
     esac
 }
 
-print_err() {
-    msg="$1"
+coincode_to_id() {
+    coin_code="$1"
 
-    printf '{ "full_text": " - [%s]", "color": "#FF0000" },' "$msg"
+    coin_id_file="/usr/share/i3bar-crypto/data/api_crypto_ids"
+
+    if [ ! -r "$coin_id_file" ]; then
+        echo 'error'
+        return 1
+    fi
+
+    coin_id=$(grep -E "^${coin_code} " "$coin_id_file" | \
+                awk '{print $2}')
+
+    if [ -z "$coin_id" ]; then
+        echo 'unknown-currency'
+        return 1
+    fi
+
+    echo "$coin_id"
+}
+
+is_connected() {
+    if ! ping -c 2 free.currencyconverterapi.com >/dev/null 2>&1; then
+        return 1
+    fi
+    if ! ping -c 2 api.coinmarketcap.com >/dev/null 2>&1; then
+        return 1
+    fi
+    return 0
+}
+
+is_valid_platform() {
+    case $1 in
+        coinbase) return 0;;
+        *) return 1;;
+    esac
+}
+
+print_err() {
+    printf '{ "full_text": " - [%s]", "color": "#FF0000" },' "$1"
 }
 
 print_crypto_change()
@@ -141,15 +170,7 @@ print_crypto_data()
     change_period="$3"
     printSymbol="$4"
     platform="$5"
-
-    idlist_file="/usr/share/i3bar-crypto/data/api_crypto_ids"
-
-    if [ ! -r "$idlist_file" ]; then
-        print_err 'error'
-        return 1
-    fi
-
-    id=$(grep -E "^${crypto_name} " "$idlist_file" | awk '{print $2}')
+    id="$6"
 
     req=$(curl -s "https://api.coinmarketcap.com/v2/ticker/${id}/")
 
@@ -174,7 +195,7 @@ print_crypto_data()
     if [ "$platform" = "none" ]; then
         price=$(echo "$req" | sed -n 's%.*price": \(-\?[0-9]\+\.[0-9]\+\),.*%\1%p')
     else
-        out="$(eval "${platform}_get_currency_price '${crypto_name}'")"
+        out="$(eval "${platform}_get_coin_price '${crypto_name}'")"
 
         if [ "$?" -ne 0 ]; then
             print_err "$out"
@@ -186,7 +207,7 @@ print_crypto_data()
 
     money_symbol=''
     if $printSymbol; then
-        money_symbol=$(moneycode2symbol "$money_code")
+        money_symbol=$(moneycode_to_symbol "$money_code")
         # shellcheck disable=SC2181
         if [ "$?" -ne 0 ]; then
             print_err 'money-symbol-error'
@@ -202,7 +223,7 @@ print_crypto_data()
 }
 
 usage() {
-    echo 'Usage: i3bar-crypto [-p MONEY_CODE] [-c day] CURRENCY,...
+    echo 'Usage: i3bar-crypto [-m CODE] [-p PLATFORM] [-c day] CURRENCY,...
 
 Print crypto-currencies information in i3bar-JSON format.
 
@@ -218,8 +239,8 @@ Options:
         money by giving its CODE (default: USD).
   -s, --symbol
         print the money symbol. It may not work with some moneys.
-  -p, --platform NAME
-        name of the digital currency platform (ex: coinbase).
+  -p, --platform PLATFORM
+        name of the digital currency PLATFORM (ex: coinbase).
 
 Example:
   $ i3bar-crypto --price EUR --change day BTC,ETH
@@ -239,10 +260,11 @@ main()
     for arg in "$@"; do
         shift
         case "$arg" in
-            --change) set -- "$@" '-c' ;;
-            --money) set -- "$@" '-m' ;;
+            --change)   set -- "$@" '-c' ;;
+            --money)    set -- "$@" '-m' ;;
             --platform) set -- "$@" '-p' ;;
-            *) set -- "$@" "$arg"
+            --symbol)   set -- "$@" '-s' ;;
+            *)          set -- "$@" "$arg"
         esac
     done
 
@@ -252,18 +274,18 @@ main()
     sFlag=false
 
     OPTIND=1
-    while getopts 'hvsc:m:p:' opt; do
+    while getopts 'hvsc:m:p:' opt 2>/dev/null; do
         case $opt in
             c)
-                [ -z "$OPTARG" ] && { usage; exit 2; }
+                [ -z "$OPTARG" ] && { print_err "bad_args"; exit 2; }
                 change_period="$OPTARG"
                 ;;
             m)
-                [ -z "$OPTARG" ] && { usage; exit 2; }
+                [ -z "$OPTARG" ] && { print_err "bad_args"; exit 2; }
                 money_code="$OPTARG"
                 ;;
             p)
-                [ -z "$OPTARG" ] && { usage; exit 2; }
+                [ -z "$OPTARG" ] && { print_err "bad_args"; exit 2; }
 
                 platform="$OPTARG"
 
@@ -275,24 +297,47 @@ main()
             s) sFlag=true;;
             h)  usage   ; exit;;
             v)  version ; exit;;
-            \?) usage; exit 2;;
-            :)  usage; exit 2;;
+            \?) print_err "bad-args"; exit 2;;
+            :)  print_err "bad-args"; exit 2;;
         esac
     done
 
     shift $((OPTIND-1))
 
     if [ "$#" -ne 1 ]; then
-        return 2
+        print_err "bad-args"
+        exit 2
     fi
 
     currencies="$1"; shift
+
+    if ! echo "$currencies" | \
+       grep -E '^[A-Z]{3}(,[A-Z]{3})*$' >/dev/null 2>&1; then
+        print_err "bad-args"
+        exit 2
+    fi
+
     change_period=$(change_period_to_api "$change_period")
 
+    if ! is_connected; then
+        print_err 'no-connection'
+        exit 1
+    fi
+
     IFS=","
-    for currency in $currencies; do
-        print_crypto_data "$currency" "$money_code" "$change_period" "$sFlag" \
-                          "$platform"
+    for currency_code in $currencies; do
+        out="$(coincode_to_id "$currency_code")"
+
+        [ "$?" -ne 0 ] && { print_err "$out"; continue; }
+
+        crypto_id="$out"
+
+        print_crypto_data "$currency_code" \
+                          "$money_code" \
+                          "$change_period" \
+                          "$sFlag" \
+                          "$platform" \
+                          "$crypto_id"
     done
 }
 
