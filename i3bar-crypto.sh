@@ -1,5 +1,70 @@
 #!/bin/sh
+#
+# The MIT License (MIT)
+#
+# Copyright (c) 2018-2019 Thomas "Ventto" Venriès <thomas.venries@gmail.com>
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of
+# this software and associated documentation files (the "Software"), to deal in
+# the Software without restriction, including without limitation the rights to
+# use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+# the Software, and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+# FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+# COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+# IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+usage() {
+    echo 'Usage: i3bar-crypto [-m CODE] [-p PLATFORM] [-c day] CURRENCY,...
 
+Print crypto-currencies information in i3bar-JSON format.
+
+Argument:
+  CURRENCY
+        a crypto CURRENCY acronym.
+
+Options:
+  -c, --change PERIOD
+        set the change on a PERIOD hour, day or week (default: day).
+  -m, --money CODE
+        print the price of a given crypto-currency in official
+        money by giving its CODE (default: USD).
+  -s, --symbol
+        print the money symbol. It may not work with some moneys.
+  -p, --platform PLATFORM
+        name of the digital currency PLATFORM (ex: coinbase).
+
+Example:
+  $ i3bar-crypto --money EUR --change day BTC,ETH
+  $ i3bar-crypto -s --platform coinbase BTC
+
+See Also:
+  * List all money codes:
+  $ curl -s "https://free.currencyconverterapi.com/api/v5/currencies" | \
+    python -m json.tool
+
+  * List all crypto-currencies code:
+  $ curl -s "https://api.coinmarketcap.com/v2/listings/" | python -m json.tool
+    '
+}
+
+version() {
+    echo 'i3bar-crypto 0.1
+Copyright (C) 2018 Thomas "Ventto" Venries.
+
+License MIT: <https://opensource.org/licenses/MIT>.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+'
+}
 coinbase_get_coin_price() {
     currency_code="$1"
 
@@ -220,38 +285,6 @@ print_crypto_data()
     echo '"separator_block_width": 14 },'
 
     print_crypto_change "$change"
-}
-
-usage() {
-    echo 'Usage: i3bar-crypto [-m CODE] [-p PLATFORM] [-c day] CURRENCY,...
-
-Print crypto-currencies information in i3bar-JSON format.
-
-Argument:
-  CURRENCY
-        a crypto CURRENCY acronym.
-
-Options:
-  -c, --change PERIOD
-        set the change on a PERIOD hour, day or week (default: day).
-  -m, --money CODE
-        print the price of a given crypto-currency in official
-        money by giving its CODE (default: USD).
-  -s, --symbol
-        print the money symbol. It may not work with some moneys.
-  -p, --platform PLATFORM
-        name of the digital currency PLATFORM (ex: coinbase).
-
-Example:
-  $ i3bar-crypto --price EUR --change day BTC,ETH
-
-See Also:
-List all money codes: https://free.currencyconverterapi.com/api/v5/currencies
-  '
-}
-
-version() {
-    echo 'version...'
 }
 
 main()
