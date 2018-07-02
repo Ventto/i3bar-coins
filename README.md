@@ -1,61 +1,71 @@
-i3bar-crypto
-============
+i3bar-coins
+=========
 
-*"Print crypto-currencies information in i3bar-JSON format"*
+*"Show crypto-currencies values in i3bar, in fiat-moneys (dollars, euros and so on)"*
 
-![Screenshot of i3](img/screenshot_monitor.png)
+<img alt="Screenshot of i3" src="./img/screenshot.jpg" width="480" />
 
 # Installation
 
 ## Dependencies
 
-```
-$ pacman -S i3-wm i3status conky otf-font-awesome   (or)
-$ apt-get install i3status
-```
+* *i3-wm*
+* *i3status*
+* *conky >= 1.10.0*
+* *font-awesome >= 5.0*
 
 ## Manual
 
-```
-$ git clone --recursive https://github.com/Ventto/i3bar-crypto.git
-$ cd i3bar-crypto
+```bash
+$ git clone https://github.com/Ventto/i3bar-coins.git
+$ cd i3bar-coins/
 $ sudo make install
 ```
 
-# Usage
+# Examples
 
-## Help
-
+For more details about option, loot at the `usage()` [function](./i3bar-coins.sh#L12).
 ```
-Usage: i3bar-crypto [-m CODE] [-p PLATFORM] [-c day] CURRENCY,...
-
-Argument:
-  CURRENCY
-        a crypto-CURRENCY code (ex: BTC).
-
-Options:
-  -c, --change PERIOD
-        set the change on a PERIOD hour, day or week (default: day).
-  -m, --money CODE
-        print the price of a given crypto-currency in official
-        money by giving its CODE (default: USD).
-  -s, --symbol
-        print the money symbol. It may not work with some moneys.
-  -p, --platform PLATFORM
-        name of the digital currency PLATFORM (ex: coinbase).
+Usage: i3bar-coins [-m CODE] [-p PLATFORM] [-c day] CURRENCY,...
 ```
 
-## Examples
+* Show the Bitcoin and Ethereum values in Euro:
 
 ```bash
-$ i3bar-crypto --money EUR --change day BTC,ETH
+$ i3bar-coins --symbol --money EUR BTC
+
+{ "full_text": "BTC 5788.62€", "separator_block_width": 14 },
+{ "full_text": " 0.01%", "color": "#FF0000" },
 ```
 
-```bash
-$ i3bar-crypto -s --platform coinbase BTC
+# Integration
+
+For those who already know how to customize their *i3bar* with *conky* ([or not](https://i3wm.org/docs/user-contributed/conky-i3bar.html)), use *i3bar-coins* as following:
+
+```lua
+conky.text = [[
+  [
+    ${exec i3bar-coins --money EUR --change day BTC,ETH}
+  ],
+]]
 ```
 
-## See Also
+<img alt="screenshot_example_1" src="./img/bar1.png" />
+
+```lua
+conky.text = [[
+  [
+    ${exec i3bar-coins --symbol --change week --platform coinbase BTC,ETH}
+  ],
+]]
+```
+
+<img alt="screenshot_example_2" src="./img/bar2.png" />
+
+# See Also
+
+* Take a look at my dotfiles [repository](https://github.com/Ventto/dot/tree/master/.config/i3) as an integration example
+
 
 * List all money codes:
 
@@ -68,4 +78,13 @@ $ curl -s "https://free.currencyconverterapi.com/api/v5/currencies" | \
 
 ```bash
 $ curl -s "https://api.coinmarketcap.com/v2/listings/" | python -m json.tool
+```
+
+# FAQ
+
+**Why doesn't the `--symbol` option display the fiat money's symbol ?**
+
+* The example below shows a Bitcoin value in CFP Franc (or XPF) is money which has no symbol:
+```
+$ i3bar-coins --money XPF --symbol BTC
 ```
