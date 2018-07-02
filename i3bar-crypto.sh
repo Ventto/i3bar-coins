@@ -65,6 +65,7 @@ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 '
 }
+
 coinbase_get_coin_price() {
     currency_code="$1"
 
@@ -197,15 +198,12 @@ is_connected() {
     return 0
 }
 
-is_valid_platform() {
-    case $1 in
-        coinbase) return 0;;
-        *) return 1;;
-    esac
+arg_err() {
+    printf '{ "full_text": " - [%s]", "color": "#FF0000" }\n' "$1"
 }
 
 print_err() {
-    printf '{ "full_text": " - [%s]", "color": "#FF0000" },' "$1"
+    printf '{ "full_text": " - [%s]", "color": "#FF0000" }' "$1"
 }
 
 print_crypto_change()
@@ -221,7 +219,7 @@ print_crypto_change()
         color='#00FF00'
     fi
 
-    printf '{ "full_text": "%s", "color": "%s" },\n' \
+    printf '{ "full_text": "%s", "color": "%s" }' \
            "${change_out} ${change}%" "$color"
 }
 
@@ -277,7 +275,7 @@ print_crypto_data()
         fi
     fi
 
-    printf '{ "full_text": "%s %.2f%s", "separator_block_width": 14 },' \
+    printf '{ "full_text": "%s %.2f%s", "separator_block_width": 14 },\n' \
            "$crypto_name" "$price" "$money_symbol"
 
     print_crypto_change "$change"
@@ -289,11 +287,11 @@ main()
     for arg in "$@"; do
         shift
         case "$arg" in
-            --change)   set -- "$@" '-c' ;;
+            --change)  set -- "$@" '-c' ;;
             --money)    set -- "$@" '-m' ;;
             --platform) set -- "$@" '-p' ;;
             --symbol)   set -- "$@" '-s' ;;
-            *)          set -- "$@" "$arg"
+            *)          set -- "$@" "$arg" ;;
         esac
     done
 
@@ -306,35 +304,35 @@ main()
     while getopts 'hvsc:m:p:' opt 2>/dev/null; do
         case $opt in
             c)
-                [ -z "$OPTARG" ] && { print_err "bad_args"; exit 2; }
+                [ -z "$OPTARG" ] && { arg_err "bad_args" '\n'; exit 2; }
                 change_period="$OPTARG"
                 ;;
             m)
-                [ -z "$OPTARG" ] && { print_err "bad_args"; exit 2; }
+                [ -z "$OPTARG" ] && { arg_err "bad_args" '\n'; exit 2; }
                 money_code="$OPTARG"
                 ;;
             p)
-                [ -z "$OPTARG" ] && { print_err "bad_args"; exit 2; }
+                [ -z "$OPTARG" ] && { arg_err "bad_args" '\n'; exit 2; }
 
                 platform="$OPTARG"
 
                 if ! is_valid_platform "$platform"; then
-                    print_err 'unknown-platform'
+                    arg_err 'unknown-platform' '\n'
                     exit 2
                 fi
                 ;;
             s) sFlag=true;;
             h)  usage   ; exit;;
             v)  version ; exit;;
-            \?) print_err "bad-args"; exit 2;;
-            :)  print_err "bad-args"; exit 2;;
+            \?) arg_err "bad-args" '\n'; exit 2;;
+            :)  arg_err "bad-args" '\n'; exit 2;;
         esac
     done
 
     shift $((OPTIND-1))
 
     if [ "$#" -ne 1 ]; then
-        print_err "bad-args"
+        arg_err "bad-args"
         exit 2
     fi
 
@@ -342,22 +340,26 @@ main()
 
     if ! echo "$currencies" | \
        grep -E '^[A-Z]{3}(,[A-Z]{3})*$' >/dev/null 2>&1; then
-        print_err "bad-args"
+        arg_err "bad-args"
         exit 2
     fi
 
     change_period=$(change_period_to_api "$change_period")
 
-    if ! is_connected; then
-        print_err 'no-connection'
-        exit 1
-    fi
+    len="$(echo "$currencies" | tr -cd ',' | wc -c)"
+    len=$((len + 1))
 
     IFS=","
+    i=0
     for currency_code in $currencies; do
+        i=$((i+1))
         out="$(coincode_to_id "$currency_code")"
 
-        [ "$?" -ne 0 ] && { print_err "$out"; continue; }
+        [ "$?" -ne 0 ] && {
+            print_err "$out";
+            [ "$i" != "$len" ] && printf ','; echo
+            continue
+        }
 
         crypto_id="$out"
 
@@ -367,6 +369,8 @@ main()
                           "$sFlag" \
                           "$platform" \
                           "$crypto_id"
+
+        [ "$i" != "$len" ] && printf ','; echo
     done
 }
 
