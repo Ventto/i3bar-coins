@@ -21,7 +21,7 @@
 # IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 usage() {
-    echo 'Usage: i3bar-crypto [-m CODE] [-p PLATFORM] [-c day] CURRENCY,...
+    echo 'Usage: i3bar-coins [-m CODE] [-p PLATFORM] [-c day] CURRENCY,...
 
 Print crypto-currencies information in i3bar-JSON format.
 
@@ -41,8 +41,8 @@ Options:
         name of the digital currency PLATFORM (ex: coinbase).
 
 Example:
-  $ i3bar-crypto --money EUR --change day BTC,ETH
-  $ i3bar-crypto -s --platform coinbase BTC
+  $ i3bar-coins --money EUR --change day BTC,ETH
+  $ i3bar-coins -s --platform coinbase BTC
 
 See Also:
   * List all money codes:
@@ -55,7 +55,7 @@ See Also:
 }
 
 version() {
-    echo 'i3bar-crypto 0.1
+    echo 'i3bar-coins 0.1
 Copyright (C) 2018 Thomas "Ventto" Venries.
 
 License MIT: <https://opensource.org/licenses/MIT>.
@@ -64,6 +64,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 '
+}
+
+arg_err() {
+    printf '{ "full_text": " - [%s]", "color": "#FF0000" }\n' "$1"
+}
+
+print_err() {
+    printf '{ "full_text": " - [%s]", "color": "#FF0000" }' "$1"
 }
 
 coinbase_get_coin_price() {
@@ -144,7 +152,7 @@ get_money_exchange()
 moneycode_to_symbol() {
     money_code="$1"
 
-    symbols_file="/usr/share/i3bar-crypto/data/money_symbols"
+    symbols_file="/usr/share/i3bar-coins/data/money_symbols"
 
     if [ ! -r "$symbols_file" ]; then
         echo '?'
@@ -173,7 +181,7 @@ change_period_to_api() {
 coincode_to_id() {
     coin_code="$1"
 
-    coin_id_file="/usr/share/i3bar-crypto/data/api_crypto_ids"
+    coin_id_file="/usr/share/i3bar-coins/data/api_crypto_ids"
 
     if [ ! -r "$coin_id_file" ]; then
         echo 'error'
@@ -189,21 +197,6 @@ coincode_to_id() {
     fi
 
     echo "$coin_id"
-}
-
-is_connected() {
-    if ! ping -c 1 google.com >/dev/null 2>&1; then
-        return 1
-    fi
-    return 0
-}
-
-arg_err() {
-    printf '{ "full_text": " - [%s]", "color": "#FF0000" }\n' "$1"
-}
-
-print_err() {
-    printf '{ "full_text": " - [%s]", "color": "#FF0000" }' "$1"
 }
 
 print_crypto_change()
