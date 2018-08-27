@@ -1,5 +1,5 @@
-PKGNAME     = i3bar-crypto
-PKGDESC     = POSIX Shell script to display cryptomoneys data on i3bar
+PKGNAME     = i3bar-coins
+PKGDESC     = POSIX Shell script to show crypto-currency values in i3bar
 
 SCRIPT      = $(PKGNAME).sh
 MANPAGE     = $(PKGNAME).1.gz
